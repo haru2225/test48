@@ -48,35 +48,43 @@ since "the exact same defs, only l≤5" was requested. If you want it fixed here
   starting from the ideal crystal instead, point `TEST_FNAME` at
   `simu_data/silica_beta_cristobalite_init.data` (bundled) and re-run.
 
-## スパコンでの実行（test47 と同じ: Singularity + DM2 をバインド）
+## スパコンでの実行（Singularity + DM2 をバインド、test45〜47 と同じ方式）
+
+DM2(`graphite` パッケージ)はイメージに焼き込みません。ビルド時に GitHub へアクセスできない
+サイトがあるため(Docker Hub / PyPI は通っても github.com だけ通らない、というケースを実際に
+確認済み)、DM2 は別途クローンして実行時にバインドマウントします。
 
 ```bash
-git clone https://github.com/haru2225/test48.git && cd test48
+git clone https://github.com/haru2225/test48.git
+git clone https://github.com/digital-synthesis-lab/DM2.git      # test48 と同じ階層に置く
+cd test48
 
 module load singularity
 singularity build test48.sif Singularity.def
 # Apptainer: apptainer build test48.sif Singularity.def
 ```
 
-`singularity build` が `ssl-verification-failed` で失敗する場合、多くはログイン/計算ノードから
-Docker Hub への HTTPS 通信がプロキシ経由でないと通らない、または外部に出られないことが原因です
-（このファイル自体の問題ではありません）。対処:
+`Singularity.def` はもう GitHub にアクセスしません(Docker Hub と PyPI だけで完結します)。
+これでも `singularity build` が失敗する場合:
 
 ```bash
-# 1. プロキシが要る場合
+# 1. Docker Hub / PyPI 自体がプロキシ経由でしか届かない場合
 export https_proxy=http://proxy.example:8080 http_proxy=http://proxy.example:8080
 singularity build test48.sif Singularity.def
 
-# 2. apptainer で試す（singularityとHTTPクライアント実装が異なる）
+# 2. apptainer で試す(HTTPクライアント実装が異なる)
 apptainer build test48.sif Singularity.def
 
 # 3. それでも失敗する場合: インターネットに出られる別のLinux環境でビルドしてから転送する
-#    （このプロジェクトの他のtestでも使っている方法）
 scp test48.sif your_cluster:/path/to/test48/
 ```
 
+`DM2` 自体を github.com からクローンできないノードがある場合は、アクセスできる別のノード・
+手元の PC で `git clone` するか zip を取得し、scp でスパコンへ転送してください。
+
 ```bash
 qsub -P PROJECT_ID -v STAGE=train run_test48.pbs
+# DM2 が ../DM2 以外にあるなら: qsub -P PROJECT_ID -v STAGE=train,DM2_ROOT=/abs/path/DM2 run_test48.pbs
 # training complete後:
 qsub -P PROJECT_ID -v STAGE=generate run_test48.pbs
 ```

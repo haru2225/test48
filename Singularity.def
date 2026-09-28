@@ -2,7 +2,7 @@ Bootstrap: docker
 From: pytorch/pytorch:2.5.0-cuda12.4-cudnn9-runtime
 
 %labels
-    Description "PyTorch CUDA + e3nn 0.4.4 + DM2 graphite runtime for test48"
+    Description "PyTorch CUDA + e3nn 0.4.4 runtime for test48 (DM2/graphite bound at runtime, not baked in)"
 
 %post
     export DEBIAN_FRONTEND=noninteractive
@@ -22,9 +22,11 @@ From: pytorch/pytorch:2.5.0-cuda12.4-cudnn9-runtime
         ipywidgets \
         torch-geometric==2.6.1 \
         e3nn==0.4.4
-    # DM2 provides the `graphite` package; pinned to the commit test45-48 were checked against.
-    python -m pip install --no-cache-dir --no-deps \
-        https://github.com/digital-synthesis-lab/DM2/archive/1c9b6d3cf2a29566bc3212b6982d77582412fb91.zip
+    # DM2 (the `graphite` package) is deliberately NOT installed here -- pip installing it from
+    # GitHub during the build requires github.com access from the build node, which some sites'
+    # build/compute nodes cannot reach even when Docker Hub / PyPI are reachable. Instead, DM2 is
+    # bind-mounted at RUN time and found via PYTHONPATH (see run_test48.pbs), matching
+    # test45/46/47's own approach -- only Docker Hub and PyPI need to be reachable to build this.
 
 %environment
     export PYTHONNOUSERSITE=1
@@ -33,4 +35,5 @@ From: pytorch/pytorch:2.5.0-cuda12.4-cudnn9-runtime
     export MPLCONFIGDIR=/tmp/matplotlib-test48
 
 %test
-    python -c "import ase, e3nn, torch, torch_geometric, graphite; print('torch', torch.__version__, 'e3nn', e3nn.__version__)"
+    python -c "import ase, e3nn, torch, torch_geometric; print('torch', torch.__version__, 'e3nn', e3nn.__version__)"
+    # graphite is not on PYTHONPATH at build time (bound at run time); not checked here.
