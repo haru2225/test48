@@ -56,11 +56,36 @@ git clone https://github.com/haru2225/test48.git && cd test48
 module load singularity
 singularity build test48.sif Singularity.def
 # Apptainer: apptainer build test48.sif Singularity.def
+```
 
+`singularity build` が `ssl-verification-failed` で失敗する場合、多くはログイン/計算ノードから
+Docker Hub への HTTPS 通信がプロキシ経由でないと通らない、または外部に出られないことが原因です
+（このファイル自体の問題ではありません）。対処:
+
+```bash
+# 1. プロキシが要る場合
+export https_proxy=http://proxy.example:8080 http_proxy=http://proxy.example:8080
+singularity build test48.sif Singularity.def
+
+# 2. apptainer で試す（singularityとHTTPクライアント実装が異なる）
+apptainer build test48.sif Singularity.def
+
+# 3. それでも失敗する場合: インターネットに出られる別のLinux環境でビルドしてから転送する
+#    （このプロジェクトの他のtestでも使っている方法）
+scp test48.sif your_cluster:/path/to/test48/
+```
+
+```bash
 qsub -P PROJECT_ID -v STAGE=train run_test48.pbs
 # training complete後:
 qsub -P PROJECT_ID -v STAGE=generate run_test48.pbs
 ```
+
+## 動作確認状況
+
+- `train.py`: CPU 上、極小設定（18 参照構造 x duplicate=2、4 更新）で最後まで完走を確認済み
+  （モデル保存・損失グラフ出力まで到達）。
+- `generate.py`: `.to('cuda')` 固定のため CPU では未確認。GPU での実行結果はまだありません。
 
 出力: `test48_loss_figure.png`, `model/test48_model.pt`,
 `gen_data/test48_denoised_random_sio2_crystal.extxyz`。DM2 本来の `main()` の設定値どおり、
