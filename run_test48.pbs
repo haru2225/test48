@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# test48: DM2's own train.py / generate.py (unmodified defs, l<=5 model), run as two SEPARATE
+# jobs -- matching DM2's own manual two-script workflow (no CLI flags, no resumability, no
+# time-budget guard: this is a single, straight-through run per script, unlike test47.py).
+#   qsub -P PROJECT_ID -v STAGE=train    run_test48.pbs
+#   qsub -P PROJECT_ID -v STAGE=generate run_test48.pbs   # after training finishes
+#PBS -q sg8
+#PBS -N test48
+#PBS -l walltime=20:00:00
+#PBS -l select=1:ncpus=8:mpiprocs=1:ompthreads=8:mem=32gb:ngpus=1
+#PBS -j oe
+set -euo pipefail
+cd "${PBS_O_WORKDIR:-$(dirname "${BASH_SOURCE[0]}")}"
+work_dir="$(pwd -P)"
+stage="${STAGE:?Set STAGE=train or STAGE=generate}"
+
+runtime="${CONTAINER_RUNTIME:-singularity}"
+if ! command -v "$runtime" >/dev/null 2>&1 && command -v apptainer >/dev/null 2>&1; then
+    runtime=apptainer
+fi
+command -v "$runtime" >/dev/null 2>&1 || { echo 'Load Singularity or Apptainer first.' >&2; exit 2; }
+sif="${SIF_IMAGE:-$work_dir/test48.sif}"
+[[ -r "$sif" ]] || { echo "Missing container: $sif (build it: singularity build $sif Singularity.def)" >&2; exit 2; }
+
+case "$stage" in
+    train)    script=train.py ;;
+    generate) script=generate.py ;;
+    *) echo 'STAGE must be train or generate' >&2; exit 2 ;;
+esac
+
+exec "$runtime" exec --nv --bind "$work_dir:$work_dir" --pwd "$work_dir" \
+    --env OMP_NUM_THREADS=8 --env MKL_NUM_THREADS=8 \
+    "$sif" python -u "$work_dir/$script"

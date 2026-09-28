@@ -1,0 +1,5 @@
+__pycache__/
+model/*.pt
+gen_data/*.extxyz
+*.png
+*.sif
