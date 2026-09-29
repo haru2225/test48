@@ -72,7 +72,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 CHECKPOINT_PATH = Path(os.environ.get("CHECKPOINT_PATH", SCRIPT_DIR / "model" / "test48_model.pt"))
 CRYSTAL_DATA = Path(os.environ.get("CRYSTAL_DATA", SCRIPT_DIR / "simu_data" / "silica_beta_cristobalite_init.data"))
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", SCRIPT_DIR / "gen_data" / "generate_v2"))
-INIT = os.environ.get("INIT", "crystal")          # "crystal" or "random"
+INIT = os.environ.get("INIT", "crystal")          # "crystal", "crystal-noised", or "random"
 STEPS = int(os.environ.get("STEPS", 2900))        # annealing steps, SIGMA_MAX -> SIGMA_MIN
 POLISH_STEPS = int(os.environ.get("POLISH_STEPS", 100))  # extra zero-noise steps at the end
 SIGMA_MAX = float(os.environ.get("SIGMA_MAX", 0.75))  # train.py's own sigma_max_value; do NOT
@@ -90,9 +90,18 @@ def sigma_schedule(sigma_max, sigma_min, steps):
     return np.geomspace(sigma_max, sigma_min, steps + 1)
 
 
-def initial_positions(atoms, init):
+def initial_positions(atoms, init, sigma_max):
+    """'crystal': the exact ideal structure (a denoise-back-to-the-answer sanity check, not real
+    generation -- starting from the answer trivially tends to stay near the answer). 'random':
+    atoms placed uniformly at random in the cell (the actual generation test). 'crystal-noised':
+    the ideal structure plus RattleParticles-style noise at sigma_max -- the honest middle ground,
+    matching exactly the noisiest condition the model was actually trained to denoise, unlike
+    'crystal' (which starts at an untrained noise level of ~0) or 'random' (whose effective
+    deviation from the crystal is far larger than any sigma the model ever saw in training)."""
     if init == "crystal":
         return np.asarray(atoms.positions, dtype=np.float32)
+    if init == "crystal-noised":
+        return (np.asarray(atoms.positions) + sigma_max * np.random.randn(len(atoms), 3)).astype(np.float32)
     if init == "random":
         lengths = np.diag(np.asarray(atoms.cell))
         return (np.random.rand(len(atoms), 3) * lengths).astype(np.float32)
@@ -165,7 +174,7 @@ def main():
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    start_positions = initial_positions(atoms, INIT)
+    start_positions = initial_positions(atoms, INIT, SIGMA_MAX)
     pos = torch.tensor(start_positions, dtype=torch.float32, device=device)
     species = torch.tensor(LabelEncoder().fit_transform(numbers), device=device).long()
     cell = torch.tensor(cell_np, dtype=torch.float32, device=device)

@@ -123,19 +123,33 @@ DM2's generation-time 1.0, which exceeds what the model ever saw). No CLI (match
 config-constants style) — edit the `=== Change here ===` block at the top of the file (`INIT`,
 `CHECKPOINT_PATH`, `CUTOFF` must match `train.py`'s architecture, etc.).
 
+Three `INIT` modes:
+- **`crystal`**: starts from the exact ideal structure. Not really a generation test — starting
+  from the answer trivially tends to stay near the answer; it mainly checks that the sampler
+  itself doesn't destroy a correct structure (see the over-noised-sampler bug above).
+- **`crystal-noised`**: the ideal structure plus RattleParticles-style noise at `SIGMA_MAX` — the
+  honest middle ground, matching exactly the noisiest condition the model was actually trained to
+  denoise (unlike `crystal`, which starts at an untrained noise level of ~0).
+- **`random`**: atoms placed uniformly at random in the cell — the real test of generation from
+  nothing. Its effective deviation from the crystal is far larger than any σ the model ever saw in
+  training, so a poor result here doesn't necessarily mean the sampler is still broken; it may mean
+  training's σ range itself is too narrow for this starting point (a separate, deeper issue).
+
 ```bash
 python generate-v2.py   # reads the === Change here === constants at the top of the file
 # each constant can also be overridden via the environment, e.g.:
 INIT=random python generate-v2.py
+INIT=crystal-noised python generate-v2.py
 ```
 
 スパコンでは `run_test48.pbs` の `STAGE=generate-v2` から実行できます(`model/test48_model.pt` が
-必要)。`INIT`(`crystal`/`random`)、`STEPS`、`POLISH_STEPS`、`SIGMA_MAX`、`SIGMA_MIN`、`CUTOFF`、
-`SEED`、`CHECKPOINT_PATH`、`CRYSTAL_DATA`、`OUTPUT_DIR` を `qsub -v` で渡せます:
+必要)。`INIT`(`crystal`/`crystal-noised`/`random`)、`STEPS`、`POLISH_STEPS`、`SIGMA_MAX`、
+`SIGMA_MIN`、`CUTOFF`、`SEED`、`CHECKPOINT_PATH`、`CRYSTAL_DATA`、`OUTPUT_DIR` を `qsub -v` で渡せます:
 
 ```bash
 qsub -P PROJECT_ID -v STAGE=generate-v2 run_test48.pbs
 qsub -P PROJECT_ID -v STAGE=generate-v2,INIT=random run_test48.pbs
+qsub -P PROJECT_ID -v STAGE=generate-v2,INIT=crystal-noised run_test48.pbs
 ```
 
 Reuses `ase_graph_gpu`/`set_gpu` from `generate.py` unchanged; defines its own `InitialEmbedding`
