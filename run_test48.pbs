@@ -2,8 +2,9 @@
 # test48: DM2's own train.py / generate.py (unmodified defs, l<=5 model), run as two SEPARATE
 # jobs -- matching DM2's own manual two-script workflow (no CLI flags, no resumability, no
 # time-budget guard: this is a single, straight-through run per script, unlike test47.py).
-#   qsub -P PROJECT_ID -v STAGE=train    run_test48.pbs
-#   qsub -P PROJECT_ID -v STAGE=generate run_test48.pbs   # after training finishes
+#   qsub -P PROJECT_ID -v STAGE=train       run_test48.pbs
+#   qsub -P PROJECT_ID -v STAGE=generate    run_test48.pbs   # after training finishes (DM2's own, over-noised sampler)
+#   qsub -P PROJECT_ID -v STAGE=generate-v2 run_test48.pbs   # corrected sampler (see generate-v2.py's docstring)
 # DM2 (the `graphite` package) is NOT baked into the image -- clone it yourself (by any means that
 # reaches github.com, e.g. from a different node, or scp a zip up and unzip locally) and either
 # place it next to this directory (../DM2) or pass -v DM2_ROOT=/abs/path/DM2.
@@ -15,7 +16,7 @@
 set -euo pipefail
 cd "${PBS_O_WORKDIR:-$(dirname "${BASH_SOURCE[0]}")}"
 work_dir="$(pwd -P)"
-stage="${STAGE:?Set STAGE=train or STAGE=generate}"
+stage="${STAGE:?Set STAGE=train, STAGE=generate, or STAGE=generate-v2}"
 dm2_root="${DM2_ROOT:-$work_dir/../DM2}"
 
 runtime="${CONTAINER_RUNTIME:-singularity}"
@@ -29,9 +30,10 @@ sif="${SIF_IMAGE:-$work_dir/test48.sif}"
 dm2_root="$(cd "$dm2_root" && pwd)"
 
 case "$stage" in
-    train)    script=train.py ;;
-    generate) script=generate.py ;;
-    *) echo 'STAGE must be train or generate' >&2; exit 2 ;;
+    train)       script=train.py ;;
+    generate)    script=generate.py ;;
+    generate-v2) script=generate-v2.py ;;
+    *) echo 'STAGE must be train, generate, or generate-v2' >&2; exit 2 ;;
 esac
 
 exec "$runtime" exec --nv --bind "$work_dir:$work_dir" --bind "$dm2_root:$dm2_root" --pwd "$work_dir" \

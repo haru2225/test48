@@ -127,6 +127,13 @@ config-constants style) — edit the `=== Change here ===` block at the top of t
 python generate-v2.py   # reads the === Change here === constants at the top of the file
 ```
 
+スパコンでは `run_test48.pbs` の `STAGE=generate-v2` から実行できます(`model/test48_model.pt` が
+必要):
+
+```bash
+qsub -P PROJECT_ID -v STAGE=generate-v2 run_test48.pbs
+```
+
 Reuses `ase_graph_gpu`/`set_gpu` from `generate.py` unchanged; defines its own `InitialEmbedding`
 (required for unpickling `torch.save(model, ...)` from a different `__main__` script — see the
 file's own comment). Adds a same-species (Si-Si, O-O) minimum-distance check to `metrics.json`,
