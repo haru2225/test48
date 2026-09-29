@@ -6,15 +6,16 @@ The model is designed to work with atomic structures and implements the NequIP a
 test48: this is DM2's own demo/demo_training/denoiser_train_unconditional.py, def-for-def
 unchanged (ase_graph / PeriodicStructureDataset / InitialEmbedding / loss_fn / train / test /
 set_gpu are byte-for-byte identical to the upstream script), applied to test47's SiO2 crystal
-(beta-cristobalite) instead of DM2's own 3000-atom glass, with ONE deliberate change: the NequIP
-irreps are raised to l<=5 (test47's values). Everything else in main() -- LARGE_CUTOFF=10,
-CUTOFF=5, BATCH_SIZE, sigma_max_value, etc. -- is left at DM2's own defaults, unchanged, exactly
-as requested; this is NOT test47.py's resumable/CLI-configurable rewrite.
+(beta-cristobalite) instead of DM2's own 3000-atom glass, with the NequIP irreps raised to l<=5
+(test47's values). Everything else in main() was originally left at DM2's own defaults (as
+requested at the time), EXCEPT:
 
-CAUTION carried over unmodified from DM2, not fixed here: LARGE_CUTOFF=10 is tuned for DM2's own
-~36 A glass box. test47's SiO2 crystal unit cell is only 13.573 A across (half-box 6.79 A), SMALLER
-than LARGE_CUTOFF -- the same duplicate-periodic-image issue test33's module docstring describes
-("fix #1"). This script does not work around it, since doing so was not requested here.
+- LARGE_CUTOFF is now 5 (== CUTOFF), not DM2's 10. DM2's 10 A is tuned for DM2's own ~36 A glass
+  box; this SiO2 crystal unit cell is only 13.4-13.57 A across (half-box ~6.7-6.79 A), SMALLER
+  than 10 A -- the duplicate-periodic-image issue test33's module docstring describes ("fix #1"),
+  which corrupted the local geometry the network was actually trained on. Fixed on request after
+  it was diagnosed as the likely dominant remaining cause of poor generation quality. As with
+  test47, this leaves no rattle margin above CUTOFF (see that file's own note on the trade-off).
 """
 
 import numpy as np
@@ -142,7 +143,8 @@ def main():
     PIN_MEMORY  = True      # related to optimization for training, revert to False if you see any issues.
     NUM_WORKERS = 0         # related to optimization for training, revert to 1 if you see any issues.
     BATCH_SIZE  = 16        # adjust so that each minibatch fits in the (GPU) memory.
-    LARGE_CUTOFF = 10       # recommend. (test48: unmodified DM2 default; see module docstring CAUTION)
+    LARGE_CUTOFF = 5        # test48: was DM2's default 10; lowered to == CUTOFF to avoid the
+                            # duplicate-periodic-image bug in this small cell (see module docstring)
     CUTOFF      = 5         # recommend. May not the best value for every system and can affect model performace.
     LEARN_RATE  = 2e-4      # adjustable.
     NUM_UPDATES = 30_000    # need to see convergence in loss plot (more or less).
@@ -152,8 +154,9 @@ def main():
     path_save_model = './model/test48_model.pt'            # adjustable
     # ====================
 
-    # === Load data (test48: test47's 18 beta-cristobalite thermal MD snapshots, in place of
-    # DM2's own 3 glass .dat files -- see simu_data/reference_frames_metadata.json) ===
+    # === Load data (test48: 184 beta-cristobalite thermal MD snapshots from 4 NVT trajectories
+    # (fixed cell volume), in place of DM2's own 3 glass .dat files -- see
+    # simu_data/reference_frames_metadata.json) ===
     archive = np.load('./simu_data/reference_frames.npz')
     positions, cell_lengths, numbers = archive['positions'], archive['cell_lengths'], archive['numbers']
     ideal_atoms_list = [

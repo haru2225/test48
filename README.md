@@ -14,26 +14,35 @@ change requested: the NequIP irreps raised to l≤5 (test47's values, `64x0e + 3
 l≤2 edge).
 
 Only two things beyond the irreps were changed in `main()`:
-- **Data paths**: `simu_data/reference_frames.npz` (test47's 18 beta-cristobalite thermal MD
-  snapshots) in place of DM2's 3 glass `.dat` files; `inital_data/random_sio2_crystal_demo.data`
-  (test48's own genuinely random 64 Si + 128 O configuration in the 13.573 Å cell, built the same
-  crude way DM2's own `random_sio2_size_300_demo.dat` was verified to be: uniform random positions,
-  no minimum-distance enforcement) in place of DM2's own random glass demo file.
+- **Data paths**: `simu_data/reference_frames.npz` (184 beta-cristobalite thermal MD
+  snapshots, 46 each from 4 **NVT** trajectories -- fixed cell volume, so every snapshot shares
+  exactly one cell length, unlike the original 18-snapshot NPT dataset whose cell length varied
+  ~13.39-13.57 Å across frames with no way for the un-conditioned network to account for it) in
+  place of DM2's 3 glass `.dat` files; `inital_data/random_sio2_crystal_demo.data` (test48's own
+  genuinely random 64 Si + 128 O configuration in the 13.573 Å cell, built the same crude way
+  DM2's own `random_sio2_size_300_demo.dat` was verified to be: uniform random positions, no
+  minimum-distance enforcement) in place of DM2's own random glass demo file.
 - **`torch.serialization.add_safe_globals([slice])`** before importing `graphite`: not part of
   DM2's own def's, but needed on PyTorch ≥2.6 for e3nn 0.4.4's internal `torch.load` of its own
   Wigner-3j constants (same fix as test42–47).
 
-Everything else in `main()` — `LARGE_CUTOFF=10`, `CUTOFF=5`, `BATCH_SIZE=16`, `NUM_UPDATES=30_000`,
+Everything else in `main()` — `CUTOFF=5`, `BATCH_SIZE=16`, `NUM_UPDATES=30_000`,
 `sigma_max_value=0.75`, the 2900-noisy + 100-polish generation schedule, `max_sigma_for_denoising
-=1.0` — is DM2's own default, **not** test47's tuned values, exactly as requested.
+=1.0` — is DM2's own default, **not** test47's tuned values, exactly as requested. The one
+exception is `LARGE_CUTOFF`, below.
 
-## ⚠️ Known issue carried over unmodified (not fixed here, on purpose)
+## ⚠️ LARGE_CUTOFF fixed (was carried over unmodified; fixed after being diagnosed as the likely
+## dominant remaining cause of poor generation quality)
 
-`LARGE_CUTOFF=10` is tuned for DM2's own ~36 Å glass box. test47's SiO2 crystal unit cell is only
-13.573 Å across (half-box 6.79 Å), **smaller** than `LARGE_CUTOFF` — the same duplicate-periodic-
-image bug test33's module docstring calls "fix #1" (same atom pair connected through 2+ periodic
-images at once). test47.py works around this by setting `--large-cutoff 5.0`; test48 does not,
-since "the exact same defs, only l≤5" was requested. If you want it fixed here too, say so.
+DM2's own default `LARGE_CUTOFF=10` is tuned for DM2's own ~36 Å glass box. This SiO2 crystal unit
+cell is only 13.4-13.57 Å across (half-box ~6.7-6.79 Å), **smaller** than 10 Å — the same
+duplicate-periodic-image bug test33's module docstring calls "fix #1" (the same atom pair
+connected through 2+ periodic images at once), which corrupts the local geometry the TRAINING
+dataset graph is built from (independent of the generation-time sampler bug fixed by
+`generate-v2.py` below). `train.py` now sets `LARGE_CUTOFF = 5` (== `CUTOFF`), matching
+`test47.py`'s own `--large-cutoff 5.0`. As with test47, this leaves no rattle margin above
+`CUTOFF` (a pair just beyond 5 Å before noise can never appear as an edge even if noise brings it
+within 5 Å); worth revisiting if training quality is still limited after this fix.
 
 ## Other things carried over unmodified from DM2 (not bugs, just DM2's own choices)
 
