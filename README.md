@@ -101,3 +101,35 @@ qsub -P PROJECT_ID -v STAGE=generate run_test48.pbs
 
 `DM2` は MIT (Tim Hsu; Digital Synthesis Lab @ UCLA)。`simu_data/reference_frames.npz` の由来は
 `simu_data/reference_frames_metadata.json` を参照。
+
+## generate-v2.py — corrected generation (fixes an over-noised, structure-destroying sampler)
+
+`generate.py`'s own generation loop (DM2's own demo code, kept unmodified) adds noise of magnitude
+`sigma` itself at every one of 2900 annealing steps. Summed over the schedule (σ: 1.0 → 0.001),
+that injected noise ALONE has a standard deviation of **~31 Å — more than twice the ~13.4 Å unit
+cell** — regardless of how good the model is. Verified on a real, well-converged test47 run (same
+network family, same generation algorithm; loss ~0.015): the generated structure had a mean
+nearest-neighbor distance of 1.24 Å and a minimum of 0.24 Å (atoms on top of each other), with
+completely flat bond/angle histograms, even starting from the ideal crystal. `generate.py` has the
+identical issue; it is intentionally left as the DM2 port it is (see its own module docstring).
+
+`generate-v2.py` fixes this with a properly SDE-consistent step (same convention as
+`toy-model/SiO2-CG/test42.py`'s verified VE-SDE reverse update): the per-step noise scales with
+`sqrt(dv)` (dv = σᵢ² − σᵢ₊₁², the *change* in noise level) instead of the raw `σᵢ`, and the
+model's prediction is scaled by `dv/σᵢ²` (derived via Tweedie's formula from this network's own
+`dx`-prediction training objective) rather than subtracted at full strength every step. It also
+uses a geometric σ schedule (not DM2's linear one) and caps `SIGMA_MAX` at training's own 0.75 (not
+DM2's generation-time 1.0, which exceeds what the model ever saw). No CLI (matches this repo's
+config-constants style) — edit the `=== Change here ===` block at the top of the file (`INIT`,
+`CHECKPOINT_PATH`, `CUTOFF` must match `train.py`'s architecture, etc.).
+
+```bash
+python generate-v2.py   # reads the === Change here === constants at the top of the file
+```
+
+Reuses `ase_graph_gpu`/`set_gpu` from `generate.py` unchanged; defines its own `InitialEmbedding`
+(required for unpickling `torch.save(model, ...)` from a different `__main__` script — see the
+file's own comment). Adds a same-species (Si-Si, O-O) minimum-distance check to `metrics.json`,
+which neither `generate.py` nor `train.py` compute. CPU-verified for correctness (tiny random
+weights, no crash); not yet validated against a real trained checkpoint's actual generation
+quality.
