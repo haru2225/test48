@@ -29,13 +29,24 @@ sif="${SIF_IMAGE:-$work_dir/test48.sif}"
 [[ -d "$dm2_root/src/graphite" ]] || { echo "DM2 source tree not found: $dm2_root (clone digital-synthesis-lab/DM2 there, or pass -v DM2_ROOT=/abs/path)" >&2; exit 2; }
 dm2_root="$(cd "$dm2_root" && pwd)"
 
+env_args=(--env OMP_NUM_THREADS=8 --env MKL_NUM_THREADS=8 --env PYTHONPATH="$dm2_root/src")
+
 case "$stage" in
     train)       script=train.py ;;
     generate)    script=generate.py ;;
-    generate-v2) script=generate-v2.py ;;
+    generate-v2)
+        script=generate-v2.py
+        # generate-v2.py reads these from the environment (defaults match DM2's own train.py
+        # settings; see that file's "=== Change here ===" block). Override with qsub -v, e.g.:
+        #   qsub -P PROJECT_ID -v STAGE=generate-v2,INIT=random run_test48.pbs
+        for var in INIT STEPS POLISH_STEPS SIGMA_MAX SIGMA_MIN CUTOFF SEED \
+                   CHECKPOINT_PATH CRYSTAL_DATA OUTPUT_DIR; do
+            [[ -n "${!var:-}" ]] && env_args+=(--env "$var=${!var}")
+        done
+        ;;
     *) echo 'STAGE must be train, generate, or generate-v2' >&2; exit 2 ;;
 esac
 
 exec "$runtime" exec --nv --bind "$work_dir:$work_dir" --bind "$dm2_root:$dm2_root" --pwd "$work_dir" \
-    --env OMP_NUM_THREADS=8 --env MKL_NUM_THREADS=8 --env PYTHONPATH="$dm2_root/src" \
+    "${env_args[@]}" \
     "$sif" python -u "$work_dir/$script"

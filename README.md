@@ -125,13 +125,17 @@ config-constants style) — edit the `=== Change here ===` block at the top of t
 
 ```bash
 python generate-v2.py   # reads the === Change here === constants at the top of the file
+# each constant can also be overridden via the environment, e.g.:
+INIT=random python generate-v2.py
 ```
 
 スパコンでは `run_test48.pbs` の `STAGE=generate-v2` から実行できます(`model/test48_model.pt` が
-必要):
+必要)。`INIT`(`crystal`/`random`)、`STEPS`、`POLISH_STEPS`、`SIGMA_MAX`、`SIGMA_MIN`、`CUTOFF`、
+`SEED`、`CHECKPOINT_PATH`、`CRYSTAL_DATA`、`OUTPUT_DIR` を `qsub -v` で渡せます:
 
 ```bash
 qsub -P PROJECT_ID -v STAGE=generate-v2 run_test48.pbs
+qsub -P PROJECT_ID -v STAGE=generate-v2,INIT=random run_test48.pbs
 ```
 
 Reuses `ase_graph_gpu`/`set_gpu` from `generate.py` unchanged; defines its own `InitialEmbedding`

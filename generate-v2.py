@@ -29,6 +29,7 @@ minimum-distance check, which generate.py's output has no equivalent of.
 Reuses `ase_graph_gpu` / `set_gpu` from generate.py unchanged; everything else here is new.
 """
 import json
+import os
 from pathlib import Path
 
 import ase.io
@@ -66,18 +67,20 @@ class InitialEmbedding(nn.Module):
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
-# === Change here ===#
-CHECKPOINT_PATH = SCRIPT_DIR / "model" / "test48_model.pt"
-CRYSTAL_DATA = SCRIPT_DIR / "simu_data" / "silica_beta_cristobalite_init.data"  # --init crystal
-OUTPUT_DIR = SCRIPT_DIR / "gen_data" / "generate_v2"
-INIT = "crystal"          # "crystal" or "random"
-STEPS = 2900              # annealing steps, SIGMA_MAX -> SIGMA_MIN
-POLISH_STEPS = 100        # extra zero-noise steps at the end
-SIGMA_MAX = 0.75          # train.py's own sigma_max_value; do NOT exceed what the model actually
-                          # saw in training, unlike DM2's own gen-time max_sigma_for_denoising=1.0
-SIGMA_MIN = 0.03
-CUTOFF = 5.0              # must match train.py's CUTOFF the checkpoint was trained with
-SEED = 1337
+# === Change here (or override via the environment, e.g. `INIT=random python generate-v2.py`;
+# run_test48.pbs's STAGE=generate-v2 passes its own INIT/STEPS/... variables through this way) ===#
+CHECKPOINT_PATH = Path(os.environ.get("CHECKPOINT_PATH", SCRIPT_DIR / "model" / "test48_model.pt"))
+CRYSTAL_DATA = Path(os.environ.get("CRYSTAL_DATA", SCRIPT_DIR / "simu_data" / "silica_beta_cristobalite_init.data"))
+OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", SCRIPT_DIR / "gen_data" / "generate_v2"))
+INIT = os.environ.get("INIT", "crystal")          # "crystal" or "random"
+STEPS = int(os.environ.get("STEPS", 2900))        # annealing steps, SIGMA_MAX -> SIGMA_MIN
+POLISH_STEPS = int(os.environ.get("POLISH_STEPS", 100))  # extra zero-noise steps at the end
+SIGMA_MAX = float(os.environ.get("SIGMA_MAX", 0.75))  # train.py's own sigma_max_value; do NOT
+                          # exceed what the model actually saw in training, unlike DM2's own
+                          # gen-time max_sigma_for_denoising=1.0
+SIGMA_MIN = float(os.environ.get("SIGMA_MIN", 0.03))
+CUTOFF = float(os.environ.get("CUTOFF", 5.0))     # must match train.py's CUTOFF the checkpoint was trained with
+SEED = int(os.environ.get("SEED", 1337))
 GPU_ID = 0
 # ===================#
 
